@@ -34,7 +34,7 @@ body.touch.playing #ctl{display:block}
 #rotate{display:none;position:absolute;inset:0;background:#000;color:#ffe14a;font:bold 20px "Courier New",monospace;text-align:center;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:20px;line-height:1.5}
 #rotate .ph{width:60px;height:100px;border:4px solid #fff;border-radius:10px;margin:20px auto;animation:rot 2s infinite ease-in-out}
 @keyframes rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
-@media (orientation:portrait){body.touch #rotate{display:flex}}
+body.touch.wrongorient #rotate{display:flex}
 </style>
 </head>
 <body>
@@ -52,6 +52,29 @@ body.touch.playing #ctl{display:block}
   </div>
 </div>
 <div id="rotate"><div class="ph"></div>ROTATE YOUR PHONE<br>TO LANDSCAPE</div>
+<script>
+/* Robust orientation guard: iOS fires orientationchange before innerWidth/innerHeight update,
+   so re-check on every viewport event and again after short delays; never trap the player. */
+(function(){
+  var WANT='landscape',skip=false,touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  var ov=document.getElementById('rotate');
+  function land(){var w=window.innerWidth,h=window.innerHeight,vv=window.visualViewport;
+    if(vv&&vv.width&&vv.height){if(Math.abs(vv.width-w)>2||Math.abs(vv.height-h)>2){w=vv.width;h=vv.height;}}
+    if(w!==h)return w>h;var o=window.orientation;return typeof o==='number'?Math.abs(o)===90:false;}
+  function check(){var wrong=touch&&!skip&&(WANT==='landscape'?!land():land());
+    window.__wrongOrient=wrong;document.body.classList.toggle('wrongorient',wrong);
+    try{if(typeof resize==='function')resize();else if(typeof layout==='function')layout();}catch(e){}}
+  function burst(){check();[100,300,600,1000].forEach(function(t){setTimeout(check,t);});}
+  window.__orientCheck=burst;
+  addEventListener('resize',burst);addEventListener('orientationchange',burst);addEventListener('pageshow',burst);addEventListener('focus',burst);
+  if(window.visualViewport)visualViewport.addEventListener('resize',burst);
+  if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',burst);
+  function goAnyway(e){e.preventDefault();e.stopPropagation();skip=true;try{if(typeof audioUnlock==='function')audioUnlock();}catch(x){}burst();}
+  ov.addEventListener('touchstart',goAnyway,{passive:false});ov.addEventListener('mousedown',goAnyway);
+  ov.insertAdjacentHTML('beforeend','<div style="font-size:13px;color:#aaa;margin-top:18px">(OR TAP HERE TO PLAY ANYWAY)</div>');
+  burst();
+})();
+</script>
 <script>
 'use strict';
 // ====================================================================

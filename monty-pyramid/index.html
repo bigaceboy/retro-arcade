@@ -32,7 +32,7 @@ body.touch.playing #ctl{display:block}
 #bA{right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);background:rgba(220,40,40,.3)}
 
 #rotate{display:none;position:absolute;inset:0;background:#000;color:#ffd040;font:bold 20px "Courier New",monospace;text-align:center;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:20px;line-height:1.5}
-@media (orientation:portrait){body.touch #rotate{display:flex}}
+body.touch.wrongorient #rotate{display:flex}
 </style>
 </head>
 <body>
@@ -47,6 +47,29 @@ body.touch.playing #ctl{display:block}
   </div>
 </div>
 <div id="rotate">ROTATE YOUR PHONE<br>TO LANDSCAPE</div>
+<script>
+/* Robust orientation guard: iOS fires orientationchange before innerWidth/innerHeight update,
+   so re-check on every viewport event and again after short delays; never trap the player. */
+(function(){
+  var WANT='landscape',skip=false,touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  var ov=document.getElementById('rotate');
+  function land(){var w=window.innerWidth,h=window.innerHeight,vv=window.visualViewport;
+    if(vv&&vv.width&&vv.height){if(Math.abs(vv.width-w)>2||Math.abs(vv.height-h)>2){w=vv.width;h=vv.height;}}
+    if(w!==h)return w>h;var o=window.orientation;return typeof o==='number'?Math.abs(o)===90:false;}
+  function check(){var wrong=touch&&!skip&&(WANT==='landscape'?!land():land());
+    window.__wrongOrient=wrong;document.body.classList.toggle('wrongorient',wrong);
+    try{if(typeof resize==='function')resize();else if(typeof layout==='function')layout();}catch(e){}}
+  function burst(){check();[100,300,600,1000].forEach(function(t){setTimeout(check,t);});}
+  window.__orientCheck=burst;
+  addEventListener('resize',burst);addEventListener('orientationchange',burst);addEventListener('pageshow',burst);addEventListener('focus',burst);
+  if(window.visualViewport)visualViewport.addEventListener('resize',burst);
+  if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',burst);
+  function goAnyway(e){e.preventDefault();e.stopPropagation();skip=true;try{if(typeof audioUnlock==='function')audioUnlock();}catch(x){}burst();}
+  ov.addEventListener('touchstart',goAnyway,{passive:false});ov.addEventListener('mousedown',goAnyway);
+  ov.insertAdjacentHTML('beforeend','<div style="font-size:13px;color:#aaa;margin-top:18px">(OR TAP HERE TO PLAY ANYWAY)</div>');
+  burst();
+})();
+</script>
 <script>
 'use strict';
 const GAME_ID='montyp';
@@ -570,7 +593,7 @@ function render(){
 // ---------------- loop ----------------
 let last=performance.now(),acc=0;const STEP=1000/60;window.__fps=0;let fN=0,fT=0;
 function loop(now){requestAnimationFrame(loop);let dt=now-last;last=now;if(dt>250)dt=250;fN++;fT+=dt;if(fT>=1000){window.__fps=fN*1000/fT;fN=0;fT=0;}
-  if(isTouch&&innerHeight>innerWidth&&S.state==='play'&&!S.paused)togglePause();
+  if(window.__wrongOrient&&S.state==='play'&&!S.paused)togglePause();
   const ts=window.__ts||1;
   if(!S.paused){acc+=dt*ts;let n=0;while(acc>=STEP&&n<5*ts){readInput();update();I.jp=0;acc-=STEP;n++;}if(n>=5*ts)acc=0;}
   render();}
